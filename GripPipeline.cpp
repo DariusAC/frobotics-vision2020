@@ -7,12 +7,12 @@ uint8_t watch = 0;
 nt::NetworkTableEntry hsvThresholdEntries[6];
 
 GripPipeline::GripPipeline() {
-	hsvThresholdHue[0] = 72.0;
-	hsvThresholdHue[1] = 0.0;
-	hsvThresholdSaturation[0] = 0.0; 
-	hsvThresholdSaturation[1] = 53.0;
-	hsvThresholdValue[0] = 91.7266187053599;
-	hsvThresholdValue[1] =  255.0;
+	hsvThresholdHue[1] = 72.0;
+	hsvThresholdHue[0] = 0.0;
+	hsvThresholdSaturation[1] = 0.0; 
+	hsvThresholdSaturation[0] = 53.0;
+	hsvThresholdValue[1] = 91.7266187053599;
+	hsvThresholdValue[0] =  255.0;
 	cameraConstY = 24.0;
 	cameraConstX = 320.0/14.0;
 }
@@ -27,25 +27,23 @@ void CorrectRect(cv::RotatedRect &rect) {
 }
 
 void SetThreshold() {
-	hsvThresholdHue[1] = hsvThresholdEntries[0].GetDouble(180.0); 
-	hsvThresholdHue[0] = hsvThresholdEntries[1].GetDouble(0.0);
-	hsvThresholdSaturation[1] = hsvThresholdEntries[2].GetDouble(53.0);
-	hsvThresholdSaturation[0] = hsvThresholdEntries[3].GetDouble(0.0);
-	hsvThresholdValue[1] = hsvThresholdEntries[4].GetDouble(255.0);
-	hsvThresholdValue[0] = hsvThresholdEntries[5].GetDouble(91.7266187053600);
-
-	nt->GetEntry("/SmartDashboard/Debug2").SetDouble(hsvThresholdHue[1]);
+	hsvThresholdHue[0] = hsvThresholdEntries[0].GetDouble(hsvThresholdHue[0]); 
+	hsvThresholdHue[1] = hsvThresholdEntries[1].GetDouble(hsvThresholdHue[1]);
+	hsvThresholdSaturation[0] = hsvThresholdEntries[2].GetDouble(hsvThresholdSaturation[0]);
+	hsvThresholdSaturation[1] = hsvThresholdEntries[3].GetDouble(hsvThresholdSaturation[1]);
+	hsvThresholdValue[0] = hsvThresholdEntries[4].GetDouble(hsvThresholdValue[0]);
+	hsvThresholdValue[1] = hsvThresholdEntries[5].GetDouble(hsvThresholdValue[1]);
 }
 void UpdateVisionNetworkTable(cv::RotatedRect rect) {
-	nt->GetEntry("/SmartDashboard/vision/data/RotatedRectX").SetDouble(rect.center.x);
-	nt->GetEntry("/SmartDashboard/vision/data/RotatedRectY").SetDouble(rect.center.y);      
-	nt->GetEntry("/SmartDashboard/vision/data/OffsetX").SetDouble(rect.center.x - 160);
-	nt->GetEntry("/SmartDashboard/vision/data/OffsetY").SetDouble(120 - rect.center.y);	
-	nt->GetEntry("/SmartDashboard/vision/data/RotatedRectWidth").SetDouble(rect.size.width);
-	nt->GetEntry("/SmartDashboard/vision/data/RotatedRectHeight").SetDouble(rect.size.height);
-	nt->GetEntry("/SmartDashboard/vision/data/RotatedRectAngle").SetDouble(rect.angle);
-	nt->GetEntry("/SmartDashboard/vision/data/DistX").SetDouble(320.0/rect.size.width*2.924);
-	nt->GetEntry("/SmartDashboard/vision/data/DistY").SetDouble(240.0/rect.size.height*1.7283);
+	nt->GetEntry("/vision/data/RotatedRectX").SetDouble(rect.center.x);
+	nt->GetEntry("/vision/data/RotatedRectY").SetDouble(rect.center.y);      
+	nt->GetEntry("/vision/data/OffsetX").SetDouble(rect.center.x - 160);
+	nt->GetEntry("/vision/data/OffsetY").SetDouble(120 - rect.center.y);	
+	nt->GetEntry("/vision/data/RotatedRectWidth").SetDouble(rect.size.width);
+	nt->GetEntry("/vision/data/RotatedRectHeight").SetDouble(rect.size.height);
+	nt->GetEntry("/vision/data/RotatedRectAngle").SetDouble(rect.angle);
+	nt->GetEntry("/vision/data/DistX").SetDouble(320.0/rect.size.width*2.924);
+	nt->GetEntry("/vision/data/DistY").SetDouble(240.0/rect.size.height*1.7283);
 	nt->GetEntry("/vision/data/angleX").SetDouble(180.0/3.1415926535*std::atan((3.16666666666*(rect.center.x - 160)/rect.size.width)/(320.0/rect.size.width*2.924)));
 	nt->Flush();
 }
@@ -92,7 +90,6 @@ void GripPipeline::Process(cv::Mat& source0){
 	
 	double maxScore[] = {-1, -1, -1};
 	int maxIndex = -1;
-	nt->GetEntry("/SmartDashboard/HALP").SetDouble(convexHullsContours.size());
 	for (unsigned int i = 0 ; i < convexHullsContours.size() ; i++) {
 		rotatedRectangles.push_back(cv::minAreaRect(convexHullsContours[i]));
 		CorrectRect(rotatedRectangles[i]);
@@ -111,14 +108,14 @@ void GripPipeline::Process(cv::Mat& source0){
 			maxIndex = i;
 		}	
 	}
-	nt->GetEntry("/SmartDashboard/vision/angleScore").SetDouble(maxScore[0]);
-	nt->GetEntry("/SmartDashboard/vision/ratioScore").SetDouble(maxScore[1]);
-	nt->GetEntry("/SmartDashboard/vision/score").SetDouble(maxScore[2]);
+	nt->GetEntry("/vision/angleScore").SetDouble(maxScore[0]);
+	nt->GetEntry("/vision/ratioScore").SetDouble(maxScore[1]);
+	nt->GetEntry("/vision/score").SetDouble(maxScore[2]);
 	
 	if (rotatedRectangles.size() > maxIndex && maxScore[2] > 75) {
 		UpdateVisionNetworkTable(rotatedRectangles[maxIndex]);
 	}
-	nt->GetEntry("/SmartDashboard/vision/Watchdog").SetDouble(++watch);
+	nt->GetEntry("/vision/Watchdog").SetDouble(++watch);
 }
 
 /**

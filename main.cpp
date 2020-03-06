@@ -292,10 +292,19 @@ int main(int argc, char* argv[]) {
   }
 
   // start cameras
+  int visionIndex = 100;
   for (const auto& config : cameraConfigs) {
     cameras.emplace_back(StartCamera(config));
-    //ntinst.GetEntry("/SmartDashboard/Debug").SetString(ntinst.GetEntry("/SmartDashboard/Debug").GetString() + config.name + "\n");
+    if (cameras.back().GetName() == "Vision") {
+      visionIndex = cameras.size() - 1; 
+    }
   }
+  ntinst.GetEntry("/vision/Debug").SetDouble((double)visionIndex);
+  if (visionIndex == 100) {
+    ntinst.GetEntry("/vision/Debug").SetString("Vision Index Not Set!");
+    visionIndex = 0;
+  }
+  
 
   // start switched cameras
   for (const auto& config : switchedCameraConfigs) StartSwitchedCamera(config);
@@ -306,7 +315,7 @@ int main(int argc, char* argv[]) {
   // start image processing on camera 0 if present
   if (cameras.size() >= 1) {
     std::thread([&] {
-      frc::VisionRunner<grip::GripPipeline> runner(cameras[0], new grip::GripPipeline(),
+      frc::VisionRunner<grip::GripPipeline> runner(cameras[visionIndex], new grip::GripPipeline(),
                                            [&](grip::GripPipeline &pipeline) {
         // do something with pipeline results
 	grip::SetThreshold();
@@ -317,12 +326,13 @@ int main(int argc, char* argv[]) {
         ...
       });
        */
-      grip::hsvThresholdEntries[0] = ntinst.GetEntry("/vision/HSV/hueHigh");      
-      grip::hsvThresholdEntries[1] = ntinst.GetEntry("/vision/HSV/hueLow");
-      grip::hsvThresholdEntries[2] = ntinst.GetEntry("/vision/HSV/satHigh");
-      grip::hsvThresholdEntries[3] = ntinst.GetEntry("/vision/HSV/satLow");
-      grip::hsvThresholdEntries[4] = ntinst.GetEntry("/vision/HSV/valHigh");
-      grip::hsvThresholdEntries[5] = ntinst.GetEntry("/vision/HSV/valLow");
+      grip::SetThreshold();
+      grip::hsvThresholdEntries[0] = ntinst.GetEntry("/vision/HSV/hueLow");      
+      grip::hsvThresholdEntries[1] = ntinst.GetEntry("/vision/HSV/hueHigh");
+      grip::hsvThresholdEntries[2] = ntinst.GetEntry("/vision/HSV/satLow");
+      grip::hsvThresholdEntries[3] = ntinst.GetEntry("/vision/HSV/satHigh");
+      grip::hsvThresholdEntries[4] = ntinst.GetEntry("/vision/HSV/valLow");
+      grip::hsvThresholdEntries[5] = ntinst.GetEntry("/vision/HSV/valHigh");
       runner.RunForever();
     }).detach();
   }
@@ -331,7 +341,7 @@ int main(int argc, char* argv[]) {
   double n = 0;
   for (;;) {
 	n++;
+	grip::SetThreshold();
 	std::this_thread::sleep_for(std::chrono::seconds(1));
-	ntinst.GetEntry("/SmartDashboard/Watch").SetDouble(n);
   }
 }
