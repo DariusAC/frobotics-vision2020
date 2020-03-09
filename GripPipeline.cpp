@@ -45,7 +45,7 @@ void UpdateVisionNetworkTable(cv::RotatedRect rect) {
 	nt->GetEntry("/vision/data/DistX").SetDouble(320.0/rect.size.width*2.924);
 	nt->GetEntry("/vision/data/DistY").SetDouble(240.0/rect.size.height*1.7283);
 	nt->GetEntry("/vision/data/angleX").SetDouble(180.0/3.1415926535*std::atan((3.16666666666*(rect.center.x - 160)/rect.size.width)/(320.0/rect.size.width*2.924)));
-	nt->GetEntry("/vision/data/angleY").SetDouble(180.0/3.1415926535*std::atan((3.16666666666*(rect.center.y - 120)/rect.size.height)/(120.0/rect.size.height*2.924)));
+	nt->GetEntry("/vision/data/angleY").SetDouble(180.0/3.1415926535*std::atan((3.16666666666*(rect.center.x - 120)/rect.size.width)/(240.0/rect.size.height*1.7283)));
 	nt->Flush();
 }
 /**
