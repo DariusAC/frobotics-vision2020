@@ -23,7 +23,41 @@ double hsvThresholdValue[2];
 double cameraConstX, cameraConstY;
 
 namespace grip {
+int watchdog = 0;
+int filterHeight = 100;
+double deviationThresh = 400;
+
 nt::NetworkTableInstance * nt;
+
+nt::NetworkTableEntry hsvThresholdEntries[6];
+nt::NetworkTableEntry filterEntries[2];
+/*
+  Entries are:
+0: Vertical Filter Width
+1: Deviation Threshold
+*/
+
+nt::NetworkTableEntry outputEntries[9];
+/*
+  Entries are:
+0 : Average X
+1 : Average Y
+2 : Average Width
+3 : Average Height
+4 : Distance
+5 : Stripe Count
+6: Height difference between highest and lowest strip
+7: X offset in px from center of highest strip
+8: Watchdog
+ */
+
+
+void CorrectRect(cv::RotatedRect &rect);
+void SetThreshold();
+void UpdateVisionNetworkTable(double avgX, double avgY, double avgWidth, double avgHeight, double stripeCount);
+bool SortRect(cv::RotatedRect &a, cv::RotatedRect &b);
+
+
 
 /**
 * A representation of the different types of blurs that can be used.

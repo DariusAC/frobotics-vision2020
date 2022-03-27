@@ -1,21 +1,18 @@
 #include "GripPipeline.h"
 
 namespace grip {
-uint8_t watch = 0;
-
-
-nt::NetworkTableEntry hsvThresholdEntries[6];
-
+// Sets defaults for HSV
 GripPipeline::GripPipeline() {
-	hsvThresholdHue[1] = 72.0;
-	hsvThresholdHue[0] = 0.0;
-	hsvThresholdSaturation[1] = 0.0; 
-	hsvThresholdSaturation[0] = 53.0;
-	hsvThresholdValue[1] = 91.7266187053599;
-	hsvThresholdValue[0] =  255.0;
+	hsvThresholdHue[1] = 112.0;
+	hsvThresholdHue[0] = 40.0;
+	hsvThresholdSaturation[1] = 233.0;
+	hsvThresholdSaturation[0] = 60.0;
+	hsvThresholdValue[1] = 255.0;
+	hsvThresholdValue[0] =  216.0;
 	cameraConstY = 24.0;
 	cameraConstX = 320.0/14.0;
 }
+// Standardizes the angles for scoring purposes (not needed for this algorithm, but kept for future use
 void CorrectRect(cv::RotatedRect &rect) {
 	if (rect.size.width > rect.size.height)
 		return;
@@ -25,32 +22,38 @@ void CorrectRect(cv::RotatedRect &rect) {
 
 	rect.angle = 90 + rect.angle;
 }
+// Updates interal values from NT table (runs every second)
+void FetchVisionNetworkTable() {
+	filterHeight = filterEntries[0].GetDouble(filterHeight);
+	deviationThresh = filterEntries[1].GetDouble(deviationThresh);
 
-void SetThreshold() {
 	hsvThresholdHue[0] = hsvThresholdEntries[0].GetDouble(hsvThresholdHue[0]); 
 	hsvThresholdHue[1] = hsvThresholdEntries[1].GetDouble(hsvThresholdHue[1]);
 	hsvThresholdSaturation[0] = hsvThresholdEntries[2].GetDouble(hsvThresholdSaturation[0]);
 	hsvThresholdSaturation[1] = hsvThresholdEntries[3].GetDouble(hsvThresholdSaturation[1]);
 	hsvThresholdValue[0] = hsvThresholdEntries[4].GetDouble(hsvThresholdValue[0]);
 	hsvThresholdValue[1] = hsvThresholdEntries[5].GetDouble(hsvThresholdValue[1]);
+
 }
-void UpdateVisionNetworkTable(cv::RotatedRect rect) {
-	nt->GetEntry("/vision/data/RotatedRectX").SetDouble(rect.center.x);
-	nt->GetEntry("/vision/data/RotatedRectY").SetDouble(rect.center.y);      
-	nt->GetEntry("/vision/data/OffsetX").SetDouble(rect.center.x - 160);
-	nt->GetEntry("/vision/data/OffsetY").SetDouble(120 - rect.center.y);	
-	nt->GetEntry("/vision/data/RotatedRectWidth").SetDouble(rect.size.width);
-	nt->GetEntry("/vision/data/RotatedRectHeight").SetDouble(rect.size.height);
-	nt->GetEntry("/vision/data/RotatedRectAngle").SetDouble(rect.angle);
-	nt->GetEntry("/vision/data/DistX").SetDouble(320.0/rect.size.width*2.924);
-	nt->GetEntry("/vision/data/DistY").SetDouble(240.0/rect.size.height*1.7283);
-	nt->GetEntry("/vision/data/angleX").SetDouble(180.0/3.1415926535*std::atan((3.16666666666*(rect.center.x - 160)/rect.size.width)/(320.0/rect.size.width*2.924)));
-	nt->GetEntry("/vision/data/angleY").SetDouble(180.0/3.1415926535*std::atan((3.16666666666*(rect.center.x - 120)/rect.size.width)/(240.0/rect.size.height*1.7283)));
+// Outputs values from algorithm (runs every tick)
+void UpdateVisionNetworkTable(double avgX, double avgY, double avgWidth, double avgHeight, double stripeCount, double heightDiff, double xOffsetPx) {
+	outputEntries[0].SetDouble(avgX);
+	outputEntries[1].SetDouble(avgY);
+	outputEntries[2].SetDouble(avgWidth);
+	outputEntries[3].SetDouble(avgHeight);
+	outputEntries[4].SetDouble(123.0); // TODO calc dist
+	outputEntries[5].SetDouble(stripeCount);
+	outputEntries[6].SetDouble(heightDiff);
+	outputEntries[7].SetDouble(xOffsetPx);
+	outputEntries[8].SetDouble(watchdog++);
 	nt->Flush();
 }
 /**
 * Runs an iteration of the pipeline and updates outputs.
 */
+bool SortRect(cv::RotatedRect &a, cv::RotatedRect &b) {
+	return a.center.y < b.center.y;
+}
 void GripPipeline::Process(cv::Mat& source0){
 	//Step HSV_Threshold0:
 	//input
@@ -87,36 +90,128 @@ void GripPipeline::Process(cv::Mat& source0){
 	std::vector<std::vector<cv::Point> > convexHullsContours = findContoursOutput;
 	convexHulls(convexHullsContours, this->convexHullsOutput);
 
+
+
+
+	std::string suffix = std::to_string(watchdog) + ".png";
+	
+
 	std::vector<cv::RotatedRect> rotatedRectangles;
 	
-	double maxScore[] = {-1, -1, -1};
-	int maxIndex = -1;
 	for (unsigned int i = 0 ; i < convexHullsContours.size() ; i++) {
 		rotatedRectangles.push_back(cv::minAreaRect(convexHullsContours[i]));
 		CorrectRect(rotatedRectangles[i]);
-		if (rotatedRectangles[i].size.width < 20 || rotatedRectangles[i].size.height < 7) {
-			continue;
-		}
-		double score[3];
-		score[0] = 100 - std::max(0.0, 10.0*abs(rotatedRectangles[i].angle)/9);
-		score[1] = 100 - std::max(0.0, 1.0*abs(1-25*(8*rotatedRectangles[i].size.width/rotatedRectangles[i].size.height/19)));
-		score[2] = (score[0] + score[1])/2;
-		
-		if (score[2] > maxScore[2]) {
-			maxScore[0] = score[0];
-			maxScore[1] = score[1];
-			maxScore[2] = score[2];
+	}
+	sort(rotatedRectangles.begin(), rotatedRectangles.end(), SortRect);
+	/*if (watchdog % 100*20 == 0) {
+		// Write debug image files
+		cv::imwrite("/home/pi/DebugImages/src_" + suffix, source0);
+		cv::imwrite("/home/pi/DebugImages/hsv_" + suffix, hsvThresholdOutput);
+		cv::imwrite("/home/pi/DebugImages/blur_" + suffix, blurOutput);
+		cv::imwrite("/home/pi/DebugImages/erode_" + suffix, cvErodeOutput);
+		cv::imwrite("/home/pi/DebugImages/thresh_" + suffix, cvThresholdOutput);
+		// Write detected rectangles
+		cv::Mat rotatedRectImage = source0.clone();
+		for (auto &r : rotatedRectangles)
+			cv::rectangle(rotatedRectImage, cv::Point(r.center.x - r.size.width/2, r.center.y - r.size.height/2), cv::Point(r.center.x + r.size.width/2, r.center.y + r.size.height/2), cv::Scalar(0, 255, 0));
+		cv::imwrite("/home/pi/DebugImages/rotatedRectImage_" + suffix, rotatedRectImage);
+	}*/
+	if (rotatedRectangles.size() == 0) {
+		watchdog++;
+		return;
+	}
+
+	int height = blurInput.rows;
+	std::vector<int> prefixSum;
+	for (int i = 0 ; i < height ; i++) {
+		prefixSum.push_back(0);	
+	}
+	for (auto &r : rotatedRectangles) {
+		prefixSum[r.center.y]++;
+	}
+	int prefix = 0;
+	for (int i = 0 ; i < height ; i++) {
+		prefix += prefixSum[i];	
+		prefixSum[i] = prefix;
+	}
+	int max = 0;
+	int maxIndex = 0;
+	int intervalWidth = 0;
+	for (int i = filterHeight + 1; i < height ; i++) {
+		int intervalSum = prefixSum[i] - prefixSum[i - filterHeight - 1];
+		if (intervalSum > max) {
+			max = intervalSum;
 			maxIndex = i;
-		}	
+			intervalWidth = 0;
+		}else if (intervalSum == max)
+			intervalWidth++;
 	}
-	nt->GetEntry("/vision/angleScore").SetDouble(maxScore[0]);
-	nt->GetEntry("/vision/ratioScore").SetDouble(maxScore[1]);
-	nt->GetEntry("/vision/score").SetDouble(maxScore[2]);
+	int targetY = maxIndex - (intervalWidth/2);
+	int lowerBound = prefixSum[maxIndex - filterHeight];
+	int upperBound = prefixSum[maxIndex] - prefixSum[maxIndex - filterHeight];
+	// trim vector
+	rotatedRectangles.erase(rotatedRectangles.begin(), rotatedRectangles.begin() + lowerBound);
+	rotatedRectangles.erase(rotatedRectangles.begin() + upperBound + 1, rotatedRectangles.end() + 1);
+
+
+	/*if (watchdog % 100*20 == 0) {
+		cv::Mat rotatedRectImage = source0.clone();
+		std::cout << "Size: " << rotatedRectangles.size();
+		for (auto &r : rotatedRectangles)
+			cv::rectangle(rotatedRectImage, cv::Point(r.center.x - r.size.width/2, r.center.y - r.size.height/2), cv::Point(r.center.x + r.size.width/2, r.center.y + r.size.height/2), cv::Scalar(0, 255, 0));
+		cv::imwrite("/home/pi/DebugImages/filteredRotatedRectImage_" + suffix, rotatedRectImage);
+	}*/
+
+	double avgWidth = 0;
+	double avgHeight = 0;
+	for (auto &r : rotatedRectangles) {
+		avgWidth += r.size.width;
+		avgHeight += r.size.height;
+	}
+	avgWidth /= (double)rotatedRectangles.size();
+	avgHeight /= (double)rotatedRectangles.size();
+
+	std::vector<cv::RotatedRect> stripes;
+	for (auto &r : rotatedRectangles) {
+		double widthDiff = pow(avgWidth - r.size.width, 2);
+		double heightDiff = pow(avgWidth - r.size.width, 2);
+
+		if (widthDiff + heightDiff < deviationThresh)
+			stripes.push_back(r);
+	}
+
+	double avgX = 0.0;
+	double avgY = 0.0;
+
+	for (auto &r : stripes) {
+		avgX += r.center.x;
+		avgY += r.center.y;
+	}
+
+	if (stripes.size() > 0) {
+		avgX /= (double)stripes.size();
+		avgY /= (double)stripes.size();
+	}
+
+	cv::RotatedRect lowest = stripes[0];
+	cv::RotatedRect highest = stripes.back();
+
+
+	//std::cout << "Highest: " << highest.center.y << std::endl;
+	//std::cout << "Lowest: " << lowest.center.y << std::endl;
+
 	
-	if (rotatedRectangles.size() > maxIndex && maxScore[2] > 75) {
-		UpdateVisionNetworkTable(rotatedRectangles[maxIndex]);
-	}
-	nt->GetEntry("/vision/Watchdog").SetDouble(++watch);
+
+	/*if (watchdog % 100*20 == 0) {
+		cv::Mat stripesImage = source0.clone();
+		for (auto &r : stripes)
+			cv::rectangle(stripesImage, cv::Point(r.center.x - r.size.width/2, r.center.y - r.size.height/2), cv::Point(r.center.x + r.size.width/2, r.center.y + r.size.height/2), cv::Scalar(0, 255, 0));
+		cv::drawMarker(stripesImage, cv::Point(avgX, avgY), cv::Scalar(0, 0, 255));
+		cv::imwrite("/home/pi/DebugImages/stipesImage_" + suffix, stripesImage);
+	}*/
+
+
+	UpdateVisionNetworkTable(avgX, avgY, avgWidth, avgHeight, stripes.size(), highest.center.y-lowest.center.y, highest.center.x - source0.cols);
 }
 
 /**
