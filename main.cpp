@@ -340,9 +340,9 @@ int main(int argc, char* argv[]) {
       grip::outputEntries[3] = ntinst.GetEntry("/vision/averageHeight");
       grip::outputEntries[4] = ntinst.GetEntry("/vision/distance");
       grip::outputEntries[5] = ntinst.GetEntry("/vision/stripeCount");
-      grip::outputEntries[6] = ntinst.GetEntry("/vision/watchdog");
-      grip::outputEntries[7] = ntinst.GetEntry("/vision/stripHeightDiff");
-      grip::outputEntries[8] = ntinst.GetEntry("/vision/stripXOffset");
+      grip::outputEntries[6] = ntinst.GetEntry("/vision/stripHeightDiff");
+      grip::outputEntries[7] = ntinst.GetEntry("/vision/stripXOffset");
+      grip::outputEntries[8] = ntinst.GetEntry("/vision/watchdog");
 
       grip::filterEntries[0] = ntinst.GetEntry("/vision/filterHeight");
       grip::filterEntries[1] = ntinst.GetEntry("/vision/deviationThreshold");

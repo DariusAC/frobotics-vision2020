@@ -55,6 +55,7 @@ bool SortRect(cv::RotatedRect &a, cv::RotatedRect &b) {
 	return a.center.y < b.center.y;
 }
 void GripPipeline::Process(cv::Mat& source0){
+	FetchVisionNetworkTable();
 	//Step HSV_Threshold0:
 	//input
 	cv::Mat hsvThresholdInput = source0;
@@ -137,7 +138,7 @@ void GripPipeline::Process(cv::Mat& source0){
 	int max = 0;
 	int maxIndex = 0;
 	int intervalWidth = 0;
-	for (int i = filterHeight + 1; i < height ; i++) {
+	for (int i = filterHeight + 2; i < height ; i++) {
 		int intervalSum = prefixSum[i] - prefixSum[i - filterHeight - 1];
 		if (intervalSum > max) {
 			max = intervalSum;
@@ -162,6 +163,10 @@ void GripPipeline::Process(cv::Mat& source0){
 		cv::imwrite("/home/pi/DebugImages/filteredRotatedRectImage_" + suffix, rotatedRectImage);
 	}*/
 
+	if (rotatedRectangles.size() == 0) {
+		watchdog++;
+		return;
+	}
 	double avgWidth = 0;
 	double avgHeight = 0;
 	for (auto &r : rotatedRectangles) {
@@ -188,13 +193,19 @@ void GripPipeline::Process(cv::Mat& source0){
 		avgY += r.center.y;
 	}
 
+	cv::RotatedRect highest;
+
 	if (stripes.size() > 0) {
 		avgX /= (double)stripes.size();
 		avgY /= (double)stripes.size();
+		
+		highest = stripes.back();
+	}
+	else {
+		watchdog++;
+		return;
 	}
 
-	cv::RotatedRect lowest = stripes[0];
-	cv::RotatedRect highest = stripes.back();
 
 
 	//std::cout << "Highest: " << highest.center.y << std::endl;
@@ -211,7 +222,7 @@ void GripPipeline::Process(cv::Mat& source0){
 	}*/
 
 
-	UpdateVisionNetworkTable(avgX, avgY, avgWidth, avgHeight, stripes.size(), highest.center.y-lowest.center.y, highest.center.x - source0.cols);
+	UpdateVisionNetworkTable(avgX, avgY, avgWidth, avgHeight, stripes.size(), source0.rows/2 - highest.center.y , avgX - source0.cols/2);
 }
 
 /**

@@ -24,7 +24,7 @@ double cameraConstX, cameraConstY;
 
 namespace grip {
 int watchdog = 0;
-int filterHeight = 100;
+int filterHeight = 30;
 double deviationThresh = 400;
 
 nt::NetworkTableInstance * nt;
